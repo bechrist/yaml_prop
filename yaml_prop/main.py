@@ -16,8 +16,8 @@ __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['PropertyLoader', 'load', 'load_all', 
            'PropertyDumper']
 
+from collections.abc import Mapping, Generator
 import numpy as np
-import typing as typ
 import yaml
 import yaml_include
 
@@ -27,7 +27,7 @@ from .properties import ConstantProperty, TableProperty, FunctionProperty
 
 
 # %%
-_IncludeConstructors = yaml_include.Constructor | dict[str, yaml_include.Constructor]
+_IncludeConstructors = yaml_include.Constructor | Mapping[str, yaml_include.Constructor]
 
 
 class PropertyLoader(yaml.SafeLoader):
@@ -43,7 +43,7 @@ class PropertyLoader(yaml.SafeLoader):
         self.add_constructor(u'!numexpr', numexpr_yaml_constructor)
         self.add_constructor(Lambda._yaml_tag, Lambda.yaml_constructor)
                             
-        if isinstance(include_constructor, dict):
+        if isinstance(include_constructor, Mapping):
             for tag, constr in include_constructor.items():
                 self.add_constructor(f"!include_{tag}", constr)
         else:       
@@ -54,7 +54,7 @@ def load(stream) -> dict:
     return yaml.load(stream, Loader=PropertyLoader)
 
 
-def load_all(stream) -> typ.Generator[dict, None, None]:
+def load_all(stream) -> Generator[dict, None, None]:
     """Thin wrapper of :code:`yaml.load_all()` with a :code:`PropertyLoader`"""
     return yaml.load_all(stream, Loader=PropertyLoader)
 
