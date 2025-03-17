@@ -1,6 +1,6 @@
 """Math expression evaluation
 
-Copyright (c) 2024-, The University of Texas at Austin
+Copyright (C) 2024-, The University of Texas at Austin
 
 All Rights reserved.
 See file COPYRIGHT for details.
@@ -17,18 +17,18 @@ __all__ = ['array_yaml_constructor', 'numpy_array_yaml_representer',
            'numexpr_yaml_constructor', 'Lambda']
 
 import typing as typ
-
-import yaml
-
-import numpy as np
+from collections.abc import Callable, Mapping, Sequence
 import numexpr as ne
+import numpy as np
+from typing import Any
+import yaml
 
 from .common import YAMLObject
 
 
 # %%
-_Array = np.ndarray | typ.Any 
-_ArrayConstructor = typ.Callable[[list], _Array]
+_Array = np.ndarray | Any 
+_ArrayConstructor = Callable[[list], _Array]
 
 
 def array_yaml_constructor(loader: yaml.Loader, node: yaml.SequenceNode,
@@ -99,8 +99,8 @@ class Lambda(YAMLObject):
     _yaml_tag = u'!lambda'
     _yaml_attrs = ('args', 'expr', 'alias')
 
-    def __init__(self, args: typ.Sequence[str], expr: str, 
-                 alias: typ.Mapping[str, typ.Any] = None):
+    def __init__(self, args: Sequence[str], expr: str, 
+                 alias: Mapping[str, Any] = None):
         """Initializes :code:`Lambda`, see class docstring"""
         self.args = tuple(args)
         self.expr = expr
