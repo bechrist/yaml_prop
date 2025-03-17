@@ -1,6 +1,6 @@
 """Property YAML object definitions
 
-Copyright (c) 2024-, The University of Texas at Austin
+Copyright (C) 2024-, The University of Texas at Austin
 
 All Rights reserved.
 See file COPYRIGHT for details.
@@ -17,11 +17,10 @@ from __future__ import annotations
 __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['ConstantProperty', 'TableProperty', 'FunctionProperty', '_Property']
 
-import typing as typ
-
+from collections.abc import Callable, Sequence
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.interpolate as spi
-import matplotlib.pyplot as plt
 
 from .common import YAMLObject
 from .units import UNITS
@@ -71,19 +70,19 @@ class TableProperty(YAMLObject):
     :type name: str
 
     :param arguments: Property argument names
-    :type arguments: typing.Sequence[str]
+    :type arguments: Sequence[str]
 
     :param units: Argument and property units
-    :type units: typing.Sequence[str]
+    :type units: Sequence[str]
 
     :param symbols: Argument and property symbols
-    :type symbols: typing.Sequence[str]
+    :type symbols: Sequence[str]
 
     :param defaults: Default argument values
-    :type defaults: typing.Sequence[float | numpy.ndarray]
+    :type defaults: Sequence[float | numpy.ndarray]
     
     :param values: Gridded interpolant values
-    :type values: typing.Sequence[numpy.ndarray]
+    :type values: Sequence[numpy.ndarray]
 
     :param method: Interpolation method, defaults to :code:`'linear'`
     :type method: str, optional
@@ -93,11 +92,11 @@ class TableProperty(YAMLObject):
 
     def __init__(self, 
             name: str,
-            arguments: typ.Sequence[str], 
-            units: typ.Sequence[str], 
-            symbols: typ.Sequence[str], 
-            defaults: typ.Sequence[float | np.ndarray], 
-            values: typ.Sequence[np.ndarray], 
+            arguments: Sequence[str], 
+            units: Sequence[str], 
+            symbols: Sequence[str], 
+            defaults: Sequence[float | np.ndarray], 
+            values: Sequence[np.ndarray], 
             method: str = 'linear'):
         """Initializes :code:`TableProperty`, see class docstring"""
         self.name = name
@@ -179,34 +178,34 @@ class FunctionProperty(YAMLObject):
     :type name: str
 
     :param arguments: Property argument names
-    :type arguments: typing.Sequence[str]
+    :type arguments: Sequence[str]
 
     :param units: Argument and property units
-    :type units: typing.Sequence[str]
+    :type units: Sequence[str]
 
     :param symbols: Argument and property symbols
-    :type symbols: typing.Sequence[str]
+    :type symbols: Sequence[str]
 
     :param defaults: Default argument values
-    :type defaults: typing.Sequence[float | numpy.ndarray]
+    :type defaults: Sequence[float | numpy.ndarray]
 
     :param bounds: Argument bounds
-    :type bounds: typing.Sequence[typing.Sequence[float]]
+    :type bounds: Sequence[Sequence[float]]
 
     :param expression: Function expression
-    :type expression: typing.Callable
+    :type expression: Callable
     """
     _yaml_tag = u"!function"
     _yaml_attrs = ('name', 'arguments', 'units', 'symbols', 'defaults', 'bounds', 'expression')
 
     def __init__(self, 
             name: str,
-            arguments: typ.Sequence[str], 
-            units: typ.Sequence[str], 
-            symbols: typ.Sequence[str], 
-            defaults: typ.Sequence[float],
-            bounds: typ.Sequence[typ.Sequence[float]], 
-            expression: typ.Callable):
+            arguments: Sequence[str], 
+            units: Sequence[str], 
+            symbols: Sequence[str], 
+            defaults: Sequence[float],
+            bounds: Sequence[Sequence[float]], 
+            expression: Callable):
         """Initializes :code:`FunctionProperty`, see class docstring"""
         self.name = name
         self.arguments = tuple(arguments)
@@ -232,14 +231,14 @@ class FunctionProperty(YAMLObject):
         self.defaults = np.array(self.defaults)
         self.bounds = np.array(self.bounds)
     
-    def __call__(self, *args, **kwargs) -> float | np.ndarray[float]:
+    def __call__(self, *args, **kwargs) -> float | np.ndarray:
         """Evaluates expression with physical unit conversions
 
         :param args: Positional arguments
         :param kwargs: Keyword arguments
 
         :return: Evaluated expression value(s)
-        :rtype: float | numpy.ndarray[float]
+        :rtype: float | numpy.ndarray
         """
         x = _parse_prop_args(self, *args, **kwargs)
         for i, xi in enumerate(x.T):
