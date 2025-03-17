@@ -1,6 +1,6 @@
 """yaml_prop - PyYAML extension for property configuration files
 
-Copyright (c) 2024-, The University of Texas at Austin
+Copyright (C) 2024-, The University of Texas at Austin
 
 All Rights reserved.
 See file COPYRIGHT for details.
@@ -13,7 +13,7 @@ terms of the GNU General Public License (as published by the Free
 Software Foundation) version 3.0 dated June 2007.
 """
 __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
-__copyright__ = 'Copyright 2024-, The University of Texas at Austin'
+__copyright__ = 'Copyright (C) 2024-, The University of Texas at Austin'
 __date__ = '2024/07/23'
 __deprecated__ = False
 __license__ = 'GPLv3'
