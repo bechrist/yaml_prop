@@ -1,6 +1,6 @@
 """Extended PyYAML Property Loader and Dumper
 
-Copyright (c) 2024-, The University of Texas at Austin
+Copyright (C) 2024-, The University of Texas at Austin
 
 All Rights reserved.
 See file COPYRIGHT for details.
