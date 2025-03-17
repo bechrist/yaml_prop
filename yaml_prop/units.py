@@ -1,6 +1,6 @@
 """Physical units
 
-Copyright (c) 2020-2024, The University of Texas at Austin
+Copyright (C) 2024-, The University of Texas at Austin
 
 All Rights reserved.
 See file COPYRIGHT for details.
@@ -15,8 +15,7 @@ Software Foundation) version 3.0 dated June 2007.
 __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['UNITS']
 
-import typing as typ
-
+from collections.abc import Collection
 import pint
 
 
@@ -49,12 +48,12 @@ class Units:
             self.registry.Unit('Ω m')]      # electrical resistivity
         self.preferred = {qp.dimensionality: qp for qp in self.registry.default_preferred_units}
 
-    def to(self, value: float | typ.Collection[float], old_unit: str, new_unit: str) \
-            -> float | typ.Collection[float]:
+    def to(self, value: float | Collection[float], old_unit: str, new_unit: str) \
+            -> float | Collection[float]:
         """Alias for :code:`Units.base()` method.
         
         :param value: Values in specified units
-        :type value: float | typing.Collection[float]
+        :type value: float | Collection[float]
         
         :param old_unit: String representing old unit
         :type old_unit: str
@@ -63,7 +62,7 @@ class Units:
         :type new_unit: str
 
         :return: Values in new unit 
-        :type return: float | typ.Collection[float]
+        :type return: float | Collection[float]
         """
         try:
             q = self.registry.Quantity(value, old_unit)
@@ -72,18 +71,18 @@ class Units:
         q.ito(new_unit)
         return q.magnitude 
     
-    def base(self, value: float | typ.Collection[float], unit: str) \
-            -> tuple[float | typ.Collection[float], str]:
+    def base(self, value: float | Collection[float], unit: str) \
+            -> tuple[float | Collection[float], str]:
         """Converts value in specified units to value in base units.
         
         :param value: Values in specified units
-        :type value: float | typing.Collection[float]
+        :type value: float | Collection[float]
         
         :param unit: String representing unit
         :type unit: str
         
         :return: Values in base units and corresponding base units
-        :type return: tuple[float | typ.Collection[float], str]
+        :type return: tuple[float | Collection[float], str]
         """
         try:
             q = self.registry.Quantity(value, unit)
@@ -92,20 +91,20 @@ class Units:
         q.ito_base_units()
         return q.magnitude, q.units
     
-    def display(self, value: float | typ.Collection[float], unit: str) \
-            -> tuple[float | typ.Collection[float], str]:
+    def display(self, value: float | Collection[float], unit: str) \
+            -> tuple[float | Collection[float], str]:
         """Converts value in specified units to value in compact preferred units.
         
         WARNING: Conversion into preferred units is slow!
 
         :param value: Values in specified units
-        :type value: float | typing.Collection[float]
+        :type value: float | Collection[float]
         
         :param unit: String representing unit
         :type unit: str
         
         :return: Values in preferred compact units and corresponding units
-        :type return: tuple[float | typ.Collection[float], str]
+        :type return: tuple[float | Collection[float], str]
         """
         try:
             q = self.registry.Quantity(value, unit)
