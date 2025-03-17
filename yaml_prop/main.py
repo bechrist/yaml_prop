@@ -16,7 +16,7 @@ __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['PropertyLoader', 'load', 'load_all', 
            'PropertyDumper']
 
-from collections.abc import Mapping, Generator
+from collections.abc import Generator, Mapping
 import numpy as np
 import yaml
 import yaml_include
