@@ -16,7 +16,6 @@ __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['array_yaml_constructor', 'numpy_array_yaml_representer',
            'numexpr_yaml_constructor', 'Lambda']
 
-import typing as typ
 from collections.abc import Callable, Mapping, Sequence
 import numexpr as ne
 import numpy as np
@@ -88,13 +87,13 @@ class Lambda(YAMLObject):
     """Lambda expression used for evaluating functional relationships
 
     :param args: Lambda arguments
-    :type args: typing.Sequence[str]
+    :type args: Sequence[str]
 
     :param expr: Lambda expression (must be :code:`numexpr` compatible)
     :type expr: str
 
     :param alias: Expression aliases to be resolved, defaults to :code:`dict()`
-    :type alias: typing.Mapping[str, typing.Any], optional
+    :type alias: Mapping[str, Any], optional
     """
     _yaml_tag = u'!lambda'
     _yaml_attrs = ('args', 'expr', 'alias')
