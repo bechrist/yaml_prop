@@ -17,10 +17,11 @@ from __future__ import annotations
 __authors__ = ['Blake Christierson, UT Austin <bechristierson@utexas.edu>']
 __all__ = ['ConstantProperty', 'TableProperty', 'FunctionProperty', '_Property']
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence, Mapping
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.interpolate as spi
+from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
+from numpy.typing import ArrayLike
 
 from .common import YAMLObject
 from .units import UNITS
@@ -45,7 +46,7 @@ class ConstantProperty(YAMLObject):
     _yaml_tag = u'!constant'
     _yaml_attrs = ('name', 'unit', 'symbol', 'value')
 
-    def __init__(self, name: str, unit: str, symbol: str, value: float | np.ndarray):
+    def __init__(self, name: str, unit: str, symbol: str, value: float | np.ndarray, *_, **__):
         """Initializes :code:`ConstantProperty`, see class docstring"""
         self.name = name
         self.symbol = symbol
@@ -63,8 +64,9 @@ class ConstantProperty(YAMLObject):
         """Plotting method"""
         pass
 
+
 class TableProperty(YAMLObject):
-    """Table property supporting :math:`n`-dimensional gridded interpolation.
+    """Table property supporting :math:`n`-dimensional linear interpolation.
 
     :param name: Property name
     :type name: str
@@ -79,69 +81,153 @@ class TableProperty(YAMLObject):
     :type symbols: Sequence[str]
 
     :param defaults: Default argument values
-    :type defaults: Sequence[float | numpy.ndarray]
+    :type defaults: Sequence[float]
     
     :param values: Gridded interpolant values
     :type values: Sequence[numpy.ndarray]
 
-    :param method: Interpolation method, defaults to :code:`'linear'`
-    :type method: str, optional
+    :param order: Value argument listing order , defaults to :code:`None`
+    :type order: Sequence[int], optional
     """
     _yaml_tag = u'!table'
-    _yaml_attrs = ('name', 'arguments', 'units', 'symbols', 'defaults', 'values', 'method')
+    _yaml_attrs = ('name', 'arguments', 'units', 'symbols', 'defaults', 'values', 'order')
 
     def __init__(self, 
-            name: str,
-            arguments: Sequence[str], 
-            units: Sequence[str], 
-            symbols: Sequence[str], 
-            defaults: Sequence[float | np.ndarray], 
-            values: Sequence[np.ndarray], 
-            method: str = 'linear'):
+        name: str,
+        arguments: Sequence[str], 
+        units: Sequence[str], 
+        symbols: Sequence[str], 
+        defaults: Sequence[float], 
+        values: Sequence[Sequence[float | Sequence]] | Mapping[float, Sequence[float | Sequence] | Mapping], 
+        order: Sequence[int] = None,
+        *_, **__,
+    ) -> None:
         """Initializes :code:`TableProperty`, see class docstring"""
         self.name = name
         self.arguments = tuple(arguments)
-        self._arguments = tuple(arg.lower() for arg in self.arguments)
         self.symbols = tuple(symbols)
-        self.method = method 
 
-        self.values, self.units = [], []
-        for v, u in zip(values, units):
-            value, unit = UNITS.base(v, u)
-            self.values.append(value)
-            self.units.append(unit)
+        self._arguments = tuple(arg.lower() for arg in self.arguments)
+        self.ndim = len(self.arguments)
+
+        self.order = range(self.ndim) if order is None else order
+        if len(self.order) != self.ndim:
+            raise ValueError('Length of value order does not correspond to `ndim`')
+        
+        self.order = tuple(self.order)
+        self.iorder = tuple(np.argsort(self.order))
+
+        self.gridded = False
+        if isinstance(values, Sequence):
+            self.gridded = True
+            self._setup_gridded(values, units)
+        elif isinstance(values, Mapping):
+            self._setup_scattered(values, units)
+        else:
+            raise TypeError(f"Invalid type for `values`: {type(values)}")
 
         self.defaults = []
-        for d, u_old, u in zip(defaults, units, self.units):
-            self.defaults.append(UNITS.to(d, u_old, u))
-
-        self.units = tuple(self.units)
+        for d, u_, u in zip(defaults, units, self.units):
+            self.defaults.append(UNITS.to(d, u_, u))
         self.defaults = np.array(self.defaults)
-        self.values = tuple(np.array(v) for v in self.values)
 
+    def _setup_gridded(self, values: Sequence[ArrayLike], units: Sequence[str]) -> None:
+        """Performs unit conversions and builds interpolant for gridded data
+
+        :param values: Gridded data
+        :type values: Sequence[ArrayLike]
+
+        :param units: Physical units
+        :type units: Sequence[str]
+        """
+        # Convert values
+        self.values = []
+        self.units = [None for _ in range(self.ndim)]
+        for j, v in zip(self.order, values[:-1]):
+            value, self.units[j] = UNITS.base(v, units[j])
+            self.values.append(value)
+        
+        value, unit = UNITS.base(values[-1], units[-1])
+        self.values.append(value)
+        self.units.append(unit)
+
+        self.values = tuple(np.array(v) for v in self.values)
+        self.units = tuple(self.units)
+        
+        # Setup interpolant
         self.min = np.array([v.min() for v in self.values[:-1]])
         self.max = np.array([v.max() for v in self.values[:-1]])
-        self.interp = spi.RegularGridInterpolator(self.values[:-1], self.values[-1],
-                                                  method=self.method, bounds_error=False)
+
+        self.interp = RegularGridInterpolator(self.values[:-1], self.values[-1])
     
-    def __call__(self, *args, **kwargs) -> float | np.ndarray:
+    def _setup_scattered(self,
+        values: Mapping[float | Sequence[float], float | Sequence[float] | Mapping],
+        units: Sequence[str],
+    ) -> None:
+        """Performs unit conversions and builds interpolant for scattered data
+
+        :param values: Scattered data
+        :type values: Mapping[float | Sequence[float], float | Sequence[float] | Mapping]
+
+        :param units: Physical units
+        :type units: Sequence[str]
+        """
+        # Parse values
+        self.values = [[],[]]
+        def __parse_scattered(value, point: Sequence[float] = ()) -> None:
+            """Flattens nested mappings into `self.values`"""
+            if isinstance(value, Mapping):
+                for k, v in value.items():
+                    __parse_scattered(v, point + ((*k,) if isinstance(k, Sequence) else (k,)))
+            else:
+                self.values[0].append(point)
+                self.values[1].append(value)
+        __parse_scattered(values)
+
+        self.values = [np.array(v) for v in self.values]
+
+        # Convert values
+        self.units = [None for _ in range(self.ndim)]
+        for i, (j, v) in enumerate(zip(self.order, self.values[0].T)):
+            self.values[0][:,i], self.units[j] = UNITS.base(v, units[j])
+
+        self.values[1], unit = UNITS.base(self.values[1], units[-1])
+        self.units.append(unit)
+
+        self.values = tuple(self.values)
+        self.units = tuple(self.units)
+
+        # Setup interpolant
+        self.min = np.array([v.min() for v in self.values[0].T])
+        self.max = np.array([v.max() for v in self.values[0].T])
+
+        self.interp = LinearNDInterpolator(self.values[0], self.values[1])
+
+    def __call__(self, *args, threshold: bool = True, **kwargs) -> float | np.ndarray:
         """Interpolates table property value(s)
 
         :param args: Positional arguments
+
+        :param threshold: Thresholds arguments to the support of table values, defaults to :code:`True`
+        :type threshold: bool, optional
+
         :param kwargs: Keyword arguments
 
         :return: Interpolated table value(s)
         :rtype: float
         """
         x = _parse_prop_args(self, *args, **kwargs)
-        for i, xi in enumerate(x.T):
-            for j, xij in enumerate(xi):
-                if xij < self.min[i]:
-                    print(f'WARNING: Thesholding {j}-th {self.arguments[i]} to minimum: {xij} < {self.min[i]}')
-                    x[i][j] = self.min[i]
-                if self.max[i] < xij:
-                    print(f'WARNING: Thesholding {j}-th {self.arguments[i]} to maximum: {xij} > {self.max[i]}')
-                    x[i][j] = self.max[i]
+
+        if threshold:
+            for i, xi in enumerate(x.T):
+                for j, xij in enumerate(xi):
+                    if xij < self.min[i]:
+                        print(f'Thesholding {j}-th {self.arguments[i]} to minimum: {xij} < {self.min[i]}')
+                        x[i][j] = self.min[i]
+                    if self.max[i] < xij:
+                        print(f'Thesholding {j}-th {self.arguments[i]} to maximum: {xij} > {self.max[i]}')
+                        x[i][j] = self.max[i]
+
         return self.interp(x)
 
     def plot(self, argument: str, units: tuple[str, ...] | None = None, **kwargs) \
@@ -159,6 +245,9 @@ class TableProperty(YAMLObject):
         :return: Scatter plot handle and display units
         :rtype: tuple[matplotlib.pyplot.PathCollection, tuple[str, ...]]
         """
+        if not self.gridded:
+            return # TODO: rehash plotting
+    
         argument = argument.lower()
         idx = self._arguments.index(argument)
         xq = self.values[idx]
@@ -168,7 +257,7 @@ class TableProperty(YAMLObject):
         y = self(**x)
         x, y, units = _convert_to_display_values(x, y, self, units)
         s = plt.scatter(x[argument], y, **kwargs)
-        return s, units
+        return s, (units[idx], units[-1])
     
         
 class FunctionProperty(YAMLObject):
@@ -199,13 +288,15 @@ class FunctionProperty(YAMLObject):
     _yaml_attrs = ('name', 'arguments', 'units', 'symbols', 'defaults', 'bounds', 'expression')
 
     def __init__(self, 
-            name: str,
-            arguments: Sequence[str], 
-            units: Sequence[str], 
-            symbols: Sequence[str], 
-            defaults: Sequence[float],
-            bounds: Sequence[Sequence[float]], 
-            expression: Callable):
+        name: str,
+        arguments: Sequence[str], 
+        units: Sequence[str], 
+        symbols: Sequence[str], 
+        defaults: Sequence[float],
+        bounds: Sequence[Sequence[float]], 
+        expression: Callable,
+        *_, **__,
+    ) -> None:
         """Initializes :code:`FunctionProperty`, see class docstring"""
         self.name = name
         self.arguments = tuple(arguments)
@@ -271,7 +362,7 @@ class FunctionProperty(YAMLObject):
         y = self(**x)
         x, y, units = _convert_to_display_values(x, y, self, units)
         l = plt.plot(x[argument], y, **kwargs)
-        return l, units
+        return l, (units[idx], units[-1])
     
 
 # %%
@@ -294,7 +385,7 @@ def _parse_prop_args(prop: TableProperty | FunctionProperty, *args, **kwargs) ->
     for i, k in enumerate(prop._arguments):
         if i < len(args):
             if k in kwargs:
-                raise ValueError(f"'{prop.arguments[i]}' values in args and kwargs")
+                raise ValueError(f"`{prop.arguments[i]}` values in args and kwargs")
             arguments[k] = args
         elif k in kwargs:
             arguments[k] = kwargs[k]
